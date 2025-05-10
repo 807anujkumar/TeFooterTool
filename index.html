@@ -21,7 +21,7 @@
     </style>
 </head>
 <body>
-    <h2>Upload XHTML Folder</h2>
+    <h2>Upload XHTML Folder & fixed all footer order</h2>
     <input type="file" id="folderInput" webkitdirectory directory multiple>
     <button id="processBtn">Process & Download ZIP</button>
     <div id="log" style="white-space: pre-wrap; margin-top: 20px; max-height: 300px; overflow-y: auto;"></div>
@@ -130,6 +130,7 @@
         return !isNaN(str) && !isNaN(parseFloat(str)); // Match pure numeric values
     }
 
+
     function isAlphanumeric(str) {
         return /[A-Za-z0-9-]+(?:[A-Za-z0-9-]*[A-Za-z])?/.test(str); // Match alphanumeric or formatted codes like P3-U1, MB-5es
     }
@@ -147,3 +148,4 @@
     </script>
 </body>
 </html>
+
