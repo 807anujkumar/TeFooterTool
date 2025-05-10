@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>XHTML Footer Reorder Tool</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+    <style>
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 20px;
+        }
+        table, th, td {
+            border: 1px solid black;
+        }
+        th, td {
+            padding: 8px;
+            text-align: left;
+        }
+    </style>
+</head>
+<body>
+    <h2>Upload XHTML Folder</h2>
+    <input type="file" id="folderInput" webkitdirectory directory multiple>
+    <button id="processBtn">Process & Download ZIP</button>
+    <div id="log" style="white-space: pre-wrap; margin-top: 20px; max-height: 300px; overflow-y: auto;"></div>
+
+    <h3>Change Log</h3>
+    <table id="changeLogTable">
+        <thead>
+            <tr>
+                <th>File</th>
+                <th>Before</th>
+                <th>After</th>
+            </tr>
+        </thead>
+        <tbody>
+            <!-- Dynamic log entries will go here -->
+        </tbody>
+    </table>
+
+    <script>
+    const folderInput = document.getElementById('folderInput');
+    const processBtn = document.getElementById('processBtn');
+    const logDiv = document.getElementById('log');
+    const changeLogTable = document.getElementById('changeLogTable').getElementsByTagName('tbody')[0];
+
+    processBtn.addEventListener('click', async () => {
+        const files = folderInput.files;
+        if (files.length === 0) {
+            alert('Please select a folder.');
+            return;
+        }
+
+        const zip = new JSZip();
+        logDiv.textContent = 'Processing files...\n';
+
+        for (const file of files) {
+            if (!file.name.endsWith('.xhtml')) {
+                logDiv.textContent += `⚠ Skipped (not XHTML): ${file.webkitRelativePath}\n`;
+                continue;
+            }
+
+            const text = await file.text();
+            const fixedText = reorderFooter(text);
+            zip.file(file.webkitRelativePath, fixedText);
+
+            // Logging the before and after in the table
+            const beforeFooter = getFooterContent(text);
+            const afterFooter = getFooterContent(fixedText);
+            const row = changeLogTable.insertRow();
+            row.insertCell(0).textContent = file.webkitRelativePath;
+            row.insertCell(1).textContent = beforeFooter;
+            row.insertCell(2).textContent = afterFooter;
+
+            logDiv.textContent += `✔ Fixed: ${file.webkitRelativePath}\n`;
+        }
+
+        logDiv.textContent += 'Generating ZIP...\n';
+        const blob = await zip.generateAsync({ type: 'blob' });
+        const a = document.createElement('a');
+        a.href = URL.createObjectURL(blob);
+        a.download = 'fixed_xhtml_files.zip';
+        a.click();
+    });
+
+    function reorderFooter(xmlText) {
+        const parser = new DOMParser();
+        const serializer = new XMLSerializer();
+        const doc = parser.parseFromString(xmlText, 'application/xhtml+xml');
+        const footer = doc.querySelector('footer');
+
+        if (!footer) return xmlText; // no footer, skip
+
+        const pTags = Array.from(footer.querySelectorAll('p'));
+
+        const unit = [], lesson = [], text = [], number = [];
+
+        pTags.forEach(p => {
+            const textContent = p.textContent.trim().toLowerCase();
+
+            if (textContent.includes('unit') && !textContent.includes('lesson')) {
+                unit.push(p);
+            } else if (textContent.includes('lesson')) {
+                lesson.push(p);
+            } else if (isNumber(textContent)) {
+                number.push(p);
+            } else if (isAlphanumeric(textContent)) {
+                number.push(p);
+            } else {
+                text.push(p);
+            }
+        });
+
+        // Clear footer
+        footer.innerHTML = '';
+
+        // Correct the ordering: Unit -> Lesson -> Text -> Number
+        if (lesson.length > 0) {
+            [...unit, ...lesson, ...text, ...number].forEach(p => footer.appendChild(p));
+        } else {
+            [...unit, ...text, ...number].forEach(p => footer.appendChild(p));
+        }
+
+        return serializer.serializeToString(doc);
+    }
+
+    function isNumber(str) {
+        return !isNaN(str) && !isNaN(parseFloat(str)); // Match pure numeric values
+    }
+
+    function isAlphanumeric(str) {
+        return /[A-Za-z0-9-]+(?:[A-Za-z0-9-]*[A-Za-z])?/.test(str); // Match alphanumeric or formatted codes like P3-U1, MB-5es
+    }
+
+    function getFooterContent(xmlText) {
+        const parser = new DOMParser();
+        const doc = parser.parseFromString(xmlText, 'application/xhtml+xml');
+        const footer = doc.querySelector('footer');
+
+        if (!footer) return '';
+
+        const pTags = Array.from(footer.querySelectorAll('p'));
+        return pTags.map(p => p.textContent.trim()).join(' | ');
+    }
+    </script>
+</body>
+</html>
